@@ -46,7 +46,31 @@ const addFirm = async (req, res) => {
     }
 }   
 
+const deleteFirmById= async (req, res) => {
+    try {
+        const firmId = req.params.firmId; // Get firmId from request parameters
+        if (!mongoose.Types.ObjectId.isValid(firmId)) {
+            return res.status(400).json({ message: 'Invalid firm ID' });
+        }
+
+        const deletedFirm = await Firm.findByIdAndDelete(firmId);
+        if (!deletedFirm) {
+            return res.status(404).json({ message: 'Firm not found' });
+        }
+
+        // Optionally, remove the firm reference from the vendor
+        await Vendor.updateMany(
+            { firm: Firm._id },
+            { $pull: { firm: Firm._id } }
+        );
+
+        return res.status(200).json({ message: 'Firm deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting firm:', error);
+        return res.status(500).json({ message: 'Internal server error' });
+    }
+};
 module.exports = {
-    addFirm: [upload.single('image'), addFirm]
+    addFirm: [upload.single('image'), addFirm],deleteFirmById
     // Add other firm-related functions here
 };
