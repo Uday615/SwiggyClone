@@ -6,6 +6,8 @@ dotenv.config();
 const secretKey=process.env.WhatIsYourName;
 const vendorRegister = async (req, res) => {
     const { username, email, password } = req.body;
+    console.log("Register Body:", req.body);
+    console.log("password:", password);
     try {
         const vendorEmail = await Vendor.findOne({ email });
         if (vendorEmail) {
@@ -33,7 +35,8 @@ const vendorLogin = async (req, res) => {
             return res.status(400).json({ message: 'Invalid email or password' });
         }
         const token = jwt.sign({ vendorId: vendor._id }, secretKey, { expiresIn: '1h' });
-        res.status(200).json({ message: 'Vendor logged in successfully', token });
+        const vendorId= vendor._id;
+        res.status(200).json({ message: 'Vendor logged in successfully', token,vendorId });
         console.log('email:', email);
     }
     catch (error) {
@@ -56,11 +59,20 @@ const getAllVendors = async (req, res) => {
 const getVendorById=async(req,res)=>{
     const vendorId= req.params.id;
     try {
-        const vendor = await Vendor.findById(vendorId).populate('firm'); // Populate firm details
+        const vendor = await Vendor.findById(vendorId).populate({
+            path: 'firm',
+            populate: {
+                path: 'products'
+            }
+        });
         if (!vendor) {
             return res.status(404).json({ message: 'Vendor not found' });
         }
-        res.status(200).json({ vendor });
+        const vendorFirmId = vendor.firm.length > 0 ? vendor.firm[0]._id : null;
+        const { password, ...vendorDetails } = vendor.toObject();
+        res.status(200).json({ ...vendorDetails, vendorFirmId });
+        console.log('Vendor Firm ID:', vendorFirmId);
+        
     } catch (error) {
         console.error('Error fetching vendor:', error);
         res.status(500).json({ message: 'Internal server error' });

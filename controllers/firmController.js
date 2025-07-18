@@ -1,54 +1,47 @@
-const Firm= require('../models/Firm');
+const Firm = require('../models/Firm');
 const Vendor = require('../models/Vendor');
-const jwt = require('jsonwebtoken');
-const dotenv = require('dotenv');
-dotenv.config();
-const secretKey = process.env.WhatIsYourName;
+const mongoose = require('mongoose');
 const multer = require('multer');
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/'); // folder where images will be stored
-  },
-  filename: (req, file, cb) => {
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-const upload = multer({ storage });
-
-
-
+const path = require('path');
 const addFirm = async (req, res) => {
-    try{
-        const { firmName, area, category, region, offer } = req.body;
-    const image = req.file ? req.file.path : null; // Assuming the image is uploaded using multer and available in req.file // 'image' is the field name in the form
+    try {
+        const { firmName, firmArea, firmCategory, firmRegion, firmOffer } = req.body;
+        
+        const image = req.files && req.files.length > 0 ? req.files[0].path : null;
 
-    const vendorId = await Vendor.findById(req.vendorId); // Use req.vendorId set by verifyToken
-    if (!vendorId) {
-        return res.status(400).json({ message: 'Vendor not found' });
-    }
-    const firm = new Firm({
-        firmName,
-        area,
-        category,
-        region,
-        offer,
-        image,
-        vendor: vendorId ? [vendorId._id] : [] // Add the vendor ID to the firm
-    });
-    const savedFirm= await firm.save();
-    vendorId.firm.push(savedFirm._id); // Add the firm ID to the vendor's firm array
-    await vendorId.save(); // Save the updated vendor
-    return res.status(201).json({ message: 'Firm added successfully', firm });
-    }
-    catch (error) {
+        const vendor = await Vendor.findById(req.vendorId);
+        if (!vendor) {
+            return res.status(404).json({ message: 'Vendor not found' });
+        }
+
+        if(vendor.firm.length >0) {
+            return res.status(400).json({ message: 'Vendor already has a firm' });
+        }
+        const firm = new Firm({
+            firmName,
+            area: firmArea,
+            category: firmCategory,
+            region: firmRegion,
+            offer: firmOffer,
+            image,
+            vendor: vendor._id
+        });
+
+        const savedFirm = await firm.save();
+        const firmId = savedFirm._id;
+        vendor.firm.push(savedFirm._id);
+        await vendor.save();
+        
+        return res.status(201).json({ message: 'Firm added successfully', firmId });
+    } catch (error) {
         console.error('Error adding firm:', error);
         return res.status(500).json({ message: 'Internal server error' });
     }
-}   
+};
 
-const deleteFirmById= async (req, res) => {
+const deleteFirmById = async (req, res) => {
     try {
-        const firmId = req.params.firmId; // Get firmId from request parameters
+        const firmId = req.params.firmId;
         if (!mongoose.Types.ObjectId.isValid(firmId)) {
             return res.status(400).json({ message: 'Invalid firm ID' });
         }
@@ -58,10 +51,9 @@ const deleteFirmById= async (req, res) => {
             return res.status(404).json({ message: 'Firm not found' });
         }
 
-        // Optionally, remove the firm reference from the vendor
         await Vendor.updateMany(
-            { firm: Firm._id },
-            { $pull: { firm: Firm._id } }
+            { firm: firmId },
+            { $pull: { firm: firmId } }
         );
 
         return res.status(200).json({ message: 'Firm deleted successfully' });
@@ -70,7 +62,8 @@ const deleteFirmById= async (req, res) => {
         return res.status(500).json({ message: 'Internal server error' });
     }
 };
+
 module.exports = {
-    addFirm: [upload.single('image'), addFirm],deleteFirmById
-    // Add other firm-related functions here
+    addFirm,
+    deleteFirmById
 };
